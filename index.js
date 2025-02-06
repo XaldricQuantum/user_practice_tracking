@@ -21,6 +21,12 @@ const db = mongoose.connection;
 db.on('connected', () => console.log('✅ Mongoose connected to DB'));
 
 
+// Log passed in Urls 
+app.use((req, res, next) => {
+    console.log(`Request URL: ${req.originalUrl}`);
+    next();
+})
+
 app.get('/', (req, res) => {
     res.sendFile(`${process.cwd()}/views/index.html`)
 });
@@ -55,7 +61,7 @@ app.get('/api/users', async (req, res) => {
 app.post('/api/users/:_id/exercises', async (req, res) => {
     
     try {
-        const userId = req.body[':_id'], description = req.body.description,
+        const userId = req.params._id, description = req.body.description,
          duration = req.body.duration, date = req.body.date;
         const user = await User.findById(userId)
         console.log("user ",userId, user.username );
@@ -67,7 +73,7 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
 
         // console.log(allExercises);
         return res.json({_id: userId, username: exercise.username, 
-            date: exercise.date, duration: exercise.duration, desciption: exercise.description })
+            date: exercise.date.toDateString(), duration: exercise.duration, description: exercise.description })
     } catch (err) {
         console.log("somethig bad happend");
         console.log(err);
@@ -75,6 +81,48 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
         
     }
     
+});
+
+app.get('/api/users/:_id/logs', async (req, res) => {
+    const userId = req.params._id;
+    let filter = {userId};
+    let allExercises;
+    let user;
+    try {
+        const from = req.query['from'];
+        const to = req.query['to'];
+        const limit = req.query.limit;
+        console.log("from, to , limit :", from, to, limit);
+        
+        if (from || to) {
+            filter.date = {}
+            if (from) filter.date.$gte = new Date(from);
+            if (to) filter.date.$lte = new Date(to);
+        }
+        let query = Exercise.find(filter);
+        if (limit) query = query.limit(Number(limit));
+        allExercises = await Exercise.find(query);
+        user = await User.findById(userId);
+        // console.log(userId);
+        console.log("user: ", user);
+        console.log(allExercises);
+    } catch (err) {
+        console.log("query failed 107");
+        console.log(err);
+        return null;
+        
+    }
+    const userExercises = {
+        _id: userId,
+        username: user.username,
+        count: allExercises.length,
+        log: allExercises.map((exercise) => ({
+            description: exercise.description,
+            duration: exercise.duration,
+            date: exercise.date.toDateString()
+        }))
+    }
+    return res.json(userExercises);
 })
 
 // const newUser = async (userName) => {
